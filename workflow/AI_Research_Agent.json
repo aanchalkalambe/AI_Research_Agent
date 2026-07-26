@@ -1,0 +1,215 @@
+{
+  "name": "AI_Research_Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 7
+            }
+          ]
+        }
+      },
+      "id": "80d25909-c3bf-4aba-89fb-d48f44fd15f1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-5-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "id": "f62c9d82-3d4e-4feb-9bd8-5c30ed2c52f3",
+      "name": "OpenAI Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        560,
+        192
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.tavily.com/search",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"api_key\": \"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\",\n  \"query\": \"Artificial Intelligence OR AI OR LLM OR OpenAI OR Anthropic OR Google DeepMind OR Microsoft AI OR Meta AI OR robotics OR machine learning OR generative AI OR AI regulation OR AI startup news from the last 24 hours\",\n  \"topic\": \"news\",\n  \"days\": 1,\n  \"max_results\": 25\n}",
+        "options": {}
+      },
+      "id": "b587ab7b-a6cf-49a9-ba90-7b93134e142c",
+      "name": "Search AI News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $(\"Search AI News\").first().json.results;\n\nlet formattedNews = results.map((item, index) => {\n  return `${index + 1}. Title: ${item.title}\\nURL: ${item.url}\\nContent Snippet: ${item.content}\\n`;\n}).join(\"\\n---\\n\");\n\nreturn [{ json: { newsData: formattedNews } }];"
+      },
+      "id": "0e1676a8-9146-4dbc-a429-04967494bd45",
+      "name": "Clean Search Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an expert AI technology editor creating a professional daily AI newsletter.\n\nBelow are recent AI news articles collected from the web.\n\n{{ $json.newsData }}\n\nYour job is to:\n\n1. Remove duplicate or nearly identical news.\n2. Keep only the 10 most important stories.\n3. Rank them from most impactful to least impactful.\n4. Ignore advertisements, opinion pieces, sponsored content, or low-quality articles.\n5. Keep only factual information.\n6. Rewrite the summaries in clear professional English.\n\nReturn ONLY valid JSON.\n\nFormat:\n\n[\n  {\n    \"title\": \"...\",\n    \"url\": \"...\",\n    \"category\": \"...\",\n    \"importance\": 9.8,\n    \"summary\": \"...\",\n    \"impact\": \"...\",\n    \"source\": \"...\"\n  }\n]\n\nCategory must be one of:\n\nResearch\nOpen Source\nLLMs\nBusiness\nRobotics\nHealthcare\nCoding\nSecurity\nRegulation\nInfrastructure\n\nImportance should be a number between 1 and 10.\n\nSummary should be 2 concise sentences.\n rules: \nPrefer original reporting.\nIgnore opinion pieces.\nPrefer Reuters, AP, WIRED, MIT Technology Review, OpenAI, Anthropic, Google DeepMind, NVIDIA, Hugging Face, Microsoft.\nRemove duplicates.\nIf two stories describe the same event, keep only the best source.\nRank by impact.\nImpact should explain why professionals should care in one sentence.\n\nDo not wrap the JSON in markdown.",
+        "batching": {}
+      },
+      "id": "acc2a72f-02ce-4900-94c3-9112a952a61d",
+      "name": "Summarize News",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let raw = $(\"Summarize News\").first().json.text;\n\nraw = raw\n  .replace(/```json/g, \"\")\n  .replace(/```/g, \"\")\n  .trim();\n\nconst articles = JSON.parse(raw);\n\nconst today = new Date().toLocaleDateString(\"en-US\", {\n  weekday: \"long\",\n  year: \"numeric\",\n  month: \"long\",\n  day: \"numeric\"\n});\n\nlet htmlBody = `\n<div style=\"\nfont-family:Arial,sans-serif;\nmax-width:700px;\nmargin:auto;\nbackground:#f4f6fb;\npadding:30px;\n\">\n\n<div style=\"\nbackground:#2563eb;\ncolor:white;\npadding:30px;\nborder-radius:12px;\ntext-align:center;\n\">\n\n<h1>🤖 Daily AI Digest</h1>\n\n<p>${today}</p>\n\n<p>Top AI developments from the last 24 hours</p>\n\n</div>\n\n<br>\n`;\n\narticles.forEach((art, idx) => {\n\nhtmlBody += `\n<div style=\"\nmargin-bottom:25px;\npadding:18px;\nbackground:#ffffff;\nborder-radius:10px;\nborder-left:6px solid #2563eb;\nbox-shadow:0 2px 8px rgba(0,0,0,.08);\n\">\n\n<div style=\"font-size:14px;color:#666;margin-bottom:10px;\">\n🔥 <b>${art.importance}/10</b>\n&nbsp;&nbsp;|&nbsp;&nbsp;\n📂 <b>${art.category}</b>\n&nbsp;&nbsp;|&nbsp;&nbsp;\n📰 ${art.source}\n</div>\n\n<h2 style=\"margin:0 0 10px 0;\">\n<a href=\"${art.url}\" style=\"color:#2563eb;text-decoration:none;\">\n${idx + 1}. ${art.title}\n</a>\n</h2>\n\n<p style=\"font-size:15px;line-height:1.6;\">\n${art.summary}\n</p>\n\n<p style=\"\nbackground:#eef6ff;\npadding:12px;\nborder-radius:8px;\nmargin-top:12px;\n\">\n💡 <b>Why it matters</b><br>\n${art.impact}\n</p>\n\n<p style=\"margin-top:15px;\">\n<a href=\"${art.url}\">\nRead Full Article →\n</a>\n</p>\n\n</div>\n`;\n\n});\n\nhtmlBody += `\n<hr>\n\n<p style=\"\nfont-size:13px;\ncolor:#777;\ntext-align:center;\n\">\n\nGenerated automatically using <b>n8n</b> • <b>Tavily</b> • <b>OpenAI</b>\n\n</p>\n\n</div>\n`;\n\nreturn [\n  {\n    json: {\n      htmlBody\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        0
+      ],
+      "id": "089623b2-0b94-4f62-aeb0-421a929578d4",
+      "name": "Build HTML Email"
+    },
+    {
+      "parameters": {
+        "sendTo": "kalambeaanchal@gmail.com",
+        "subject": "=🤖 Daily AI Digest - {{ $now.format('yyyy-MM-dd') }}",
+        "message": "={{ $json.htmlBody }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        0
+      ],
+      "id": "b4921cb3-32e6-44e0-9533-add1b0f2a897",
+      "name": "Send Email",
+      "webhookId": "e2e63028-80fe-4bbe-af5d-1e6ea3e1d2b9",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "vqDLNsu2XM2w00Ao",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Search AI News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarize News",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search AI News": {
+      "main": [
+        [
+          {
+            "node": "Clean Search Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Search Results": {
+      "main": [
+        [
+          {
+            "node": "Summarize News",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize News": {
+      "main": [
+        [
+          {
+            "node": "Build HTML Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build HTML Email": {
+      "main": [
+        [
+          {
+            "node": "Send Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "5f1ce611-86e4-490a-932d-505eca5845ee",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5b6633de1449c275b1d6e839a7e3f62deee473358bc40714c7d285cfb87bbbd9"
+  },
+  "nodeGroups": [],
+  "id": "zh3JtiLCaU4qAGPa",
+  "tags": []
+}
